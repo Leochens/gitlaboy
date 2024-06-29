@@ -17,7 +17,8 @@
     "gt-regist": "bin/gt-regist",
     "gt-list": "bin/gt-list",
     "gt-config": "bin/gt-config",
-    "gt-remove": "bin/gt-remove"
+    "gt-remove": "bin/gt-remove",
+    "gt-cd": "bin/gt-cd"
   },
   "dependencies": {
     "@gitbeaker/rest": "^40.0.3",

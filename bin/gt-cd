@@ -1,0 +1,39 @@
+const { argv } = require('process');
+const chalk = require('chalk')
+const { execSync } = require('child_process');
+const getConfig = require('../utils/getConfig');
+
+const quickOpenFile = (options) => {
+  const projectName = options[2] || '';
+  if (!projectName) {
+    console.error(chalk.red(`请输入项目名称`));
+    return;
+  }
+  // 获取配置文件
+  const config = getConfig();
+  // 获取项目配置
+  const { projectConfig } = config;
+  // 获取项目配置
+  const projectKey = Object.keys(projectConfig).find(key => key.includes(projectName));
+  if (!projectKey) {
+    console.error(chalk.red(`未找到项目 ${projectName} 的配置`));
+    return;
+  }
+  // 获取项目配置
+  const project = projectConfig[projectKey];
+  // 获取项目路径
+  const { localRepository } = project;
+  // 执行cd 命令
+  try {
+    // 构造cd命令  
+    const cdCommand = `cd "${localRepository}"`;
+    // 执行cd命令
+    execSync(cdCommand);
+    // 输出成功信息
+    console.log(chalk.green(`已切换到项目 ${projectName}`));
+  } catch (e) {
+    console.error(chalk.red(`切换到项目 ${projectName} 失败`));
+  }
+}
+
+quickOpenFile([...argv, 'ucf-design-viewer']);
