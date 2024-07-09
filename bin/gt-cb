@@ -18,29 +18,42 @@ const defaultBranches = ['develop', 'daily', 'release'];
 
 inquirer
     .prompt([{
-            type: 'list',
-            name: 'baseBranch',
-            message: '选择一个基础分支，将基于这个分支新建操作分支',
-            choices: [...defaultBranches, new inquirer.Separator(), '其他分支'],
-        },
-        {
-            type: 'input',
-            name: 'customBranch',
-            message: '输入分支名',
-            when: (answers) => answers.baseBranch === '其他分支',
-            validate: (input) => input !== '',
-        },
-        {
-            type: 'input',
-            name: 'branchTag',
-            default: getCurrentTime(),
-            message: '输入新分支的标识',
-            validate: (input) => input !== '',
-        },
+        type: 'list',
+        name: 'baseBranch',
+        message: '选择一个基础分支，将基于这个分支新建操作分支',
+        choices: [...defaultBranches, new inquirer.Separator(), '其他分支'],
+    },
+    {
+        type: 'list',
+        name: 'branchType',
+        message: '输入分支类型',
+        choices: [
+            { name: '缺陷', value: 'bug' },
+            { name: '故事', value: 'feat' },
+            { name: '重构', value: 'refactor' },
+            { name: '性能优化', value: 'perf' },
+            { name: '样式', value: 'style' },
+        ],
+    },
+    {
+        type: 'input',
+        name: 'customBranch',
+        message: '输入分支名',
+        when: (answers) => answers.baseBranch === '其他分支',
+        validate: (input) => input !== '',
+    },
+    {
+        type: 'input',
+        name: 'branchTag',
+        default: getCurrentTime(),
+        message: '输入新分支的标识',
+        validate: (input) => input !== '',
+    },
     ])
     .then((answers) => {
         const {
             baseBranch,
+            branchType,
             customBranch,
             branchTag
         } = answers;
@@ -48,7 +61,7 @@ inquirer
         const userName = getConfig()?.baseConfig?.['gitUser-name'];
         // 创建新分支
         const currentDate = getCurrentDate();
-        const newBranchName = `${selectedBranch}-${userName}-${currentDate}-${branchTag}`;
+        const newBranchName = `${selectedBranch}-${userName}-${branchType}-${currentDate}${branchTag ? '-' : ''}${branchTag}`;
         createNewBranch(selectedBranch, newBranchName);
         console.log(chalk.green(`\n创建分支${newBranchName}成功!已为您自动切换！\n`))
     });
