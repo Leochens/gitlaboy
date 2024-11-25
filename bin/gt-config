@@ -96,6 +96,25 @@ const menu = {
         config.defaultBranchConfig = currBranches;
         writeConfig(config, '新增成功');
     },
+    quickReviewUser: async () => {
+        const userConfig = config.userConfig || {}
+        const currQuickUser = config.baseConfig['quick-review-user'] || ''
+        console.log(chalk.yellow(`当前极速审核人为: ${currQuickUser}`));
+        const userlist = Object.keys(userConfig).map(username => ({ name: username, value: { name: username, token: userConfig[username] } }));
+        const ans = await inquirer.prompt([{
+            type: 'list',
+            name: 'user',
+            message: '指定哪个用户?',
+            choices: userlist,
+            validate(val) {
+                if (val === '') return '选择切换的用户'
+                return true
+            }
+        }]);
+        const { user } = ans;
+        config.baseConfig['quick-review-user'] = user.name;
+        writeConfig(config, '切换极速审核人成功');
+    },
     getConfigPath: () => {
         console.log(path.join(HOME, 'config.json'));
     },
@@ -116,6 +135,7 @@ inquirer
             { name: '查看当前用户配置', value: 'catCurrUser' },
             { name: '切换GitLab用户', value: 'transUser' },
             { name: '新增常用代码审核人', value: 'createsAssigee' },
+            { name: '新增极速代码审核人(rvq命令直接使用他审核)', value: 'quickReviewUser' },
             { name: '新增常用合并分支', value: 'createBranchName' },
             { name: '获取配置文件地址', value: 'getConfigPath' },
             { name: '查看配置文件', value: 'catConfigPath' },

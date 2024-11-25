@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+
+const Gitlab = require('@gitbeaker/rest').Gitlab;
+
+
+const getConfig = require('../utils/getConfig');
+
+const checkRoot = require('../utils/checkRoot');
+if (!checkRoot()) { return }
+const chalk = require('chalk');
+const inquirer = require('inquirer');
+const { getMergeRequests, mergeMr } = require('../utils');
+const review = async () => {
+    const config = getConfig();
+    const quickReviewUser = config.baseConfig['quick-review-user'] || ''
+    if (!quickReviewUser) return console.log(chalk.red('还未配置极速审核人，请先使用gt-config进行配置后再试！'));
+    const userConfig = config.userConfig || {}
+    const quickReviewUserToken = userConfig[quickReviewUser];
+    if (!quickReviewUserToken) return console.log(chalk.red('极速审核人的Token不能为空，请重新添加用户并设置极速审核人后再试！'));
+    // 请求指定审核人的mr
+    const mrs = await getMergeRequests({ assigneeName: quickReviewUser });
+
+    console.log(chalk.green(`🚀🚀🚀🚀🚀当前处于极速审核流程！🚀🚀🚀🚀🚀`));
+    console.log(chalk.green(`🔥🔥🔥🔥🔥请确认后操作！       🔥🔥🔥🔥🔥`));
+    console.log(chalk.green(`审核人【${quickReviewUser}】的对于当前用户【${config.baseConfig['gitUser-name']}】待审核mr: `));
+    if (!mrs?.length) {
+        return console.log(chalk.red('暂无mr审核'))
+    }
+    const statusMap = {
+        can_be_merged: '允许合并✅',
+        unchecked: '还未检查⏳请稍后再试',
+        checking: '检查中⏳请稍后再试',
+        cannot_be_merged: '冲突异常❌',
+        cannot_be_merged_recheck: '重复检查失败❌'
+    }
+    const res = await inquirer
+        .prompt([{
+            type: 'checkbox',
+            name: 'mrs',
+            message: `多选审核通过`,
+            choices: mrs.map((mr) => ({ value: mr, name: `${statusMap[mr.merge_status]} [${mr.iid}] ${mr.title} | ${mr.source_branch} => ${mr.target_branch} 👨‍💻‍${mr.author.name} 审核链接为: ${mr.web_url}` }))
+        }
+        ])
+    const selectedMrs = res.mrs;
+    for (let mr of selectedMrs) {
+        if (mr.merge_status !== 'can_be_merged') {
+            console.log(chalk.red(`[${mr.iid}]合并失败！ 当前状态为: ${statusMap[mr.merge_status]}`));
+            continue
+        }
+        console.log(chalk.yellow(`开始合并 [${mr.iid}]...`));
+        const mrRes = await mergeMr({
+            projectId: mr.project_id, mergerequestIId: mr.iid, customApi: new Gitlab({
+                host: config.baseConfig['gitUser-url'],
+                token: quickReviewUserToken,
+            })
+        })
+        // console.log(mrRes);
+        if (mrRes.state === 'merged') {
+            console.log(chalk.green(`合并 [${mr.iid}] ${mr.title} 成功！极速审核人为 ${quickReviewUser}`));
+        } else {
+            console.log(chalk.red(`未能正常合并 [${mr.iid}] ${mr.title} ${mr.web_url}`));
+        }
+    }
+}
+review()

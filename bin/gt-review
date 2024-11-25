@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 const checkRoot = require('../utils/checkRoot');
 if (!checkRoot()) { return }
+const getConfig = require('../utils/getConfig');
+
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 const { getMergeRequests, mergeMr } = require('../utils');
 const review = async () => {
-    const mrs = await getMergeRequests({ assigneeName: 'zhanghelin' });
-    console.log(chalk.green(`正在查询审核人的待审核mr: `));
+    const config = getConfig();
+    const me = config.baseConfig['gitUser-name'];
+    const mrs = await getMergeRequests({ assigneeName: config.baseConfig['gitUser-name'], getMy: true});
+    console.log(chalk.green(`正在查询审核人${me}的待审核mr: `));
     if(!mrs?.length) {
         return console.log(chalk.red('暂无mr审核'))
     }
@@ -22,7 +26,7 @@ const review = async () => {
             type: 'checkbox',
             name: 'mrs',
             message: `多选审核通过`,
-            choices: mrs.map((mr) => ({ value: mr, name: `${statusMap[mr.merge_status]} [${mr.iid}] ${mr.title} | ${mr.source_branch} => ${mr.target_branch} 👨‍💻‍${mr.author.name}` }))
+            choices: mrs.map((mr) => ({ value: mr, name: `${statusMap[mr.merge_status]} [${mr.iid}] ${mr.title} | ${mr.source_branch} => ${mr.target_branch} 👨‍💻‍${mr.author.name} 审核链接为: ${mr.web_url}` }))
         }
         ])
     const selectedMrs = res.mrs;

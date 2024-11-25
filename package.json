@@ -13,6 +13,7 @@
     "gt-cp": "bin/gt-cp",
     "gt-mr": "bin/gt-mr",
     "gt-rv": "bin/gt-review",
+    "gt-rvq": "bin/gt-review-quick",
     "gt-init": "bin/gt-init",
     "gt-regist": "bin/gt-regist",
     "gt-list": "bin/gt-list",

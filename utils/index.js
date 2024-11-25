@@ -75,26 +75,26 @@ const cherryPickCommits = async ({ projectId, targetBranch, commits }) => {
 }
 async function getLastCommitTitle() {
     return new Promise((resolve, reject) => {
-      exec('git log -1 --pretty=format:"%s"', (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        
-        const commitTitle = stdout.trim();
-        resolve(commitTitle);
-      });
+        exec('git log -1 --pretty=format:"%s"', (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            const commitTitle = stdout.trim();
+            resolve(commitTitle);
+        });
     });
-  }
+}
 const getCurProjectName = async () => {
     const url = execSync('git remote get-url origin')?.toString()?.trim('');
     const httpsStr = baseConfig['gitUser-url'];
     let projectName = ''
     if (url.startsWith(httpsStr)) {
-        projectName = url.split(httpsStr)?. [1]?.split('.git')?. [0]
+        projectName = url.split(httpsStr)?.[1]?.split('.git')?.[0]
     } else {
         const arr = url.split(':') || []
-        projectName = arr?. [arr.length - 1]?.split('.git')?. [0]
+        projectName = arr?.[arr.length - 1]?.split('.git')?.[0]
     }
     if (!projectName) {
         return null;
@@ -102,26 +102,30 @@ const getCurProjectName = async () => {
     return projectName;
 }
 async function getCurProjectId() {
-   const projectName = await getCurProjectName();
-   if(!projectName) throw new Error('获取项目名称失败，请重新注册项目');
-   const project = projectConfig[projectName];
-   if(!project) throw new Error('通过项目名称未找到项目id! 请使用 \n \t gt-regist \n 进行项目注册后再试');
-   return project['gitUser-projectId'];
+    const projectName = await getCurProjectName();
+    if (!projectName) throw new Error('获取项目名称失败，请重新注册项目');
+    const project = projectConfig[projectName];
+    if (!project) throw new Error('通过项目名称未找到项目id! 请使用 \n \t gt-regist \n 进行项目注册后再试');
+    return project['gitUser-projectId'];
 }
 
 async function getMergeRequests({
-    assigneeName
+    assigneeName,
+    getMy
 }) {
-    const user = await getUserByUserName(assigneeName);
-    const mrs =  await api.MergeRequests.all({
+    // const API = customApi ?? api;
+    // const user = await getUserByUserName(assigneeName);
+    const mrs = await api.MergeRequests.all({
         state: 'opened',
-        scope:'assigned_to_me'
+        assigneeName: getMy ? undefined : assigneeName,
+        scope: getMy ? 'assigned_to_me' : undefined
     });
     return mrs;
 }
-async function mergeMr({mergerequestIId,projectId}) {
+async function mergeMr({ mergerequestIId, projectId, customApi }) {
+    const API = customApi ?? api;
     console.log(projectId, mergerequestIId)
-    return await api.MergeRequests.merge(projectId,mergerequestIId)
+    return await API.MergeRequests.merge(projectId, mergerequestIId)
 };
 module.exports = {
     gitlabInstance: api,
