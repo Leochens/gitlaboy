@@ -71,7 +71,11 @@ gt-cp
 ```
 ![示例图](./imgs/gt-cp.png)
 
+#### `gt-uv` 选择一个分支基于其最新版本，然后版本号+1 更新为新版本自动提交
 
+```shell
+gt-uv
+```
 ### 老用户升级
 ```shell
 sudo npm update -g gitlaboy

@@ -1,0 +1,131 @@
+#!/usr/bin/env node
+const inquirer = require('inquirer');
+const chalk = require('chalk');
+const checkRoot = require('../utils/checkRoot');
+const checkHomePath = require('../utils/checkHomePath');
+const { createNewBranch } = require('../utils/createNewBranch');
+const getConfig = require('../utils/getConfig');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+if (!checkHomePath()) {
+    return;
+}
+
+const root = checkRoot();
+if (!root) {
+    return;
+}
+
+const defaultBranches = ['develop', 'daily', 'release'];
+
+// 检查 package.json 是否存在并有效
+function checkPackageJson() {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    try {
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error('当前目录下未找到 package.json 文件');
+        }
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (!packageJson.name) {
+            throw new Error('package.json 中未配置 name 字段');
+        }
+        if (!packageJson.version) {
+            throw new Error('package.json 中未配置 version 字段');
+        }
+        if (!/^\d+\.\d+\.\d+$/.test(packageJson.version)) {
+            throw new Error('package.json 中的 version 格式不正确，应为 x.y.z 格式');
+        }
+        return packageJson;
+    } catch (error) {
+        if (error instanceof SyntaxError) {
+            throw new Error('package.json 文件格式不正确');
+        }
+        throw error;
+    }
+}
+
+// 更新版本号
+function updateVersion() {
+    try {
+        const packageJson = checkPackageJson();
+        const versionParts = packageJson.version.split('.');
+        versionParts[2] = String(parseInt(versionParts[2]) + 1);
+        packageJson.version = versionParts.join('.');
+        fs.writeFileSync(path.join(process.cwd(), 'package.json'), JSON.stringify(packageJson, null, 2));
+        return {
+            version: packageJson.version,
+            name: packageJson.name
+        };
+    } catch (error) {
+        console.error(chalk.red('更新版本号失败：', error.message));
+        process.exit(1);
+    }
+}
+
+// 提交更改
+function commitAndPush(versionInfo, branchName) {
+    try {
+        execSync('git add package.json');
+        execSync(`git commit -m "version: (${versionInfo.name}) 更新版本至 ${versionInfo.version}"`);
+        execSync(`git push --set-upstream origin ${branchName}`);
+        console.log(chalk.green(`\n${versionInfo.name} 版本已更新到 ${versionInfo.version} 并推送到远程仓库！\n`));
+    } catch (error) {
+        console.error(chalk.red('提交或推送失败：', error.message));
+        process.exit(1);
+    }
+}
+
+inquirer
+    .prompt([{
+        type: 'list',
+        name: 'baseBranch',
+        message: '选择一个基础分支，将基于这个分支更新版本号',
+        choices: [...defaultBranches, new inquirer.Separator(), '其他分支'],
+    }])
+    .then((answers) => {
+        try {
+            const { baseBranch } = answers;
+            const selectedBranch = baseBranch === '其他分支' ? customBranch : baseBranch;
+            const userName = getConfig()?.baseConfig?.['gitUser-name'];
+            if (!userName) {
+                throw new Error('未配置 git 用户名，请先运行 gt-config 进行配置');
+            }
+            const currentTime = getCurrentTime();
+            // 创建新分支
+            const currentDate = getCurrentDate();
+            const packageInfo = checkPackageJson();
+            const newBranchName = `version-update-${packageInfo.name}-${selectedBranch}-${userName}-${currentDate}${currentTime}`;
+            createNewBranch(selectedBranch, newBranchName);
+            console.log(chalk.green(`\n创建分支${newBranchName}成功!已为您自动切换！\n`));
+            
+            // 更新版本号并提交
+            const versionInfo = updateVersion();
+            commitAndPush(versionInfo, newBranchName);
+        } catch (error) {
+            console.error(chalk.red('执行失败：', error.message));
+            process.exit(1);
+        }
+    })
+    .catch((error) => {
+        console.error(chalk.red('程序执行出错：', error.message));
+        process.exit(1);
+    });
+
+// 获取当前日期
+function getCurrentDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+}
+
+function getCurrentTime() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${hours}${minutes}${seconds}`;
+}
