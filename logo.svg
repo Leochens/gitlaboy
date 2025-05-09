@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <!-- 背景圆 -->
+    <circle cx="100" cy="100" r="90" fill="#FCA326"/>
+    
+    <!-- GitLab图标的简化版 -->
+    <path d="M100 165L60 85L140 85L100 165Z" fill="#FFFFFF"/>
+    <path d="M80 85L60 85L70 45L80 85Z" fill="#FFFFFF"/>
+    <path d="M120 85L140 85L130 45L120 85Z" fill="#FFFFFF"/>
+</svg> 
