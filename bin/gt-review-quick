@@ -38,7 +38,10 @@ const review = async () => {
             type: 'checkbox',
             name: 'mrs',
             message: `多选审核通过`,
-            choices: mrs.map((mr) => ({ value: mr, name: `${statusMap[mr.merge_status]} [${mr.iid}] ${mr.title} | ${mr.source_branch} => ${mr.target_branch} 👨‍💻‍${mr.author.name} 审核链接为: ${mr.web_url}` }))
+            choices: mrs.map((mr) => {
+                const stats = mr.lineStats ? ` | 变更：+${mr.lineStats.additions} -${mr.lineStats.deletions} (共${mr.lineStats.total})` : '';
+                return ({ value: mr, name: `${statusMap[mr.merge_status]} ${stats} [${mr.iid}] ${mr.title} | ${mr.source_branch} => ${mr.target_branch} 👨‍💻‍${mr.author.name} 审核链接为: ${mr.web_url}` })
+            })
         }
         ])
     const selectedMrs = res.mrs;

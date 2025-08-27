@@ -111,7 +111,8 @@ async function getCurProjectId() {
 
 async function getMergeRequests({
     assigneeName,
-    getMy
+    getMy,
+    withStats = true
 }) {
     // const API = customApi ?? api;
     // const user = await getUserByUserName(assigneeName);
@@ -120,7 +121,61 @@ async function getMergeRequests({
         assigneeName: getMy ? undefined : assigneeName,
         scope: getMy ? 'assigned_to_me' : undefined
     });
-    return mrs;
+    if (!withStats || !mrs?.length) return mrs;
+
+    const isHeaderLine = (line) => {
+        return line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('@@');
+    };
+
+    const computeStatsFromDiff = (diffStr) => {
+        if (!diffStr) return { additions: 0, deletions: 0 };
+        const lines = diffStr.split('\n');
+        let additions = 0;
+        let deletions = 0;
+        for (const line of lines) {
+            if (!line) continue;
+            if (isHeaderLine(line)) continue;
+            if (line.startsWith('+')) additions += 1;
+            else if (line.startsWith('-')) deletions += 1;
+        }
+        return { additions, deletions };
+    };
+
+    const addStatsPromises = mrs.map(async (mr) => {
+        try {
+            // Prefer showChanges with raw diffs when available
+            let fileChanges = [];
+            try {
+                const changesRes = await api.MergeRequests.showChanges(mr.project_id, mr.iid, { accessRawDiffs: true });
+                if (changesRes?.changes?.length) {
+                    fileChanges = changesRes.changes;
+                }
+            } catch (_) {
+                // ignore and fallback
+            }
+
+            if (!fileChanges.length) {
+                const diffs = await api.MergeRequests.allDiffs(mr.project_id, mr.iid, { perPage: 100 });
+                if (Array.isArray(diffs)) fileChanges = diffs;
+            }
+
+            let additions = 0;
+            let deletions = 0;
+            for (const fileChange of fileChanges) {
+                const diffText = fileChange?.diff || '';
+                const { additions: a, deletions: d } = computeStatsFromDiff(diffText);
+                additions += a;
+                deletions += d;
+            }
+            mr.lineStats = { additions, deletions, total: additions + deletions };
+        } catch (e) {
+            mr.lineStats = null;
+        }
+        return mr;
+    });
+
+    const mrsWithStats = await Promise.all(addStatsPromises);
+    return mrsWithStats;
 }
 async function mergeMr({ mergerequestIId, projectId, customApi }) {
     const API = customApi ?? api;
