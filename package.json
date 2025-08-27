@@ -19,7 +19,8 @@
     "gt-list": "bin/gt-list",
     "gt-config": "bin/gt-config",
     "gt-remove": "bin/gt-remove",
-    "gt-uv": "bin/gt-update-version"
+    "gt-uv": "bin/gt-update-version",
+    "gt-db": "bin/gt-delete-branch"
   },
   "dependencies": {
     "@gitbeaker/rest": "^40.0.3",

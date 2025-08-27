@@ -1,0 +1,170 @@
+#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const inquirer = require('inquirer');
+const chalk = require('chalk');
+const { execSync } = require('child_process');
+const checkRoot = require('../utils/checkRoot');
+const { gitlabInstance, getCurProjectId } = require('../utils');
+
+(async () => {
+    if (!checkRoot()) { return }
+
+    const CWD = process.cwd();
+    const DELETE_FILE = path.join(CWD, 'delete_braches.txt');
+
+    const ensureStringArray = (arr) => Array.from(new Set((arr || [])
+        .map(v => (v || '').toString().trim())
+        .filter(Boolean)));
+
+    const readLocalBranches = () => {
+        try {
+            const out = execSync('git branch --format="%(refname:short)"', { stdio: ['ignore', 'pipe', 'pipe'] })
+                .toString()
+                .split('\n')
+                .map(s => s.trim())
+                .filter(Boolean);
+            return ensureStringArray(out);
+        } catch (_) {
+            return [];
+        }
+    };
+
+    const searchRemoteBranches = async (projectId, keywords) => {
+        const results = new Set();
+        for (const kw of keywords) {
+            try {
+                const remote = await gitlabInstance.Branches.all(projectId, { search: kw, perPage: 100 });
+                (remote || []).forEach(b => b?.name && results.add(b.name));
+            } catch (e) {
+                console.log(chalk.red(`远程搜索失败: ${kw} -> ${e?.message || e}`));
+            }
+        }
+        return Array.from(results);
+    };
+
+    const writeDeleteFile = (branches) => {
+        const content = ensureStringArray(branches).join('\n') + (branches.length ? '\n' : '');
+        fs.writeFileSync(DELETE_FILE, content, { encoding: 'utf8' });
+    };
+
+    // 1) 不存在文件 => 询问关键词并生成
+    if (!fs.existsSync(DELETE_FILE)) {
+        const { keyword } = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'keyword',
+                message: '输入要删除的分支关键词(可空格分隔多个关键词):',
+                validate(val) {
+                    if (!val || !val.trim()) return '请输入分支关键词';
+                    return true;
+                }
+            }
+        ]);
+
+        const keywords = keyword.split(/\s+/).filter(Boolean);
+        let projectId;
+        try {
+            projectId = await getCurProjectId();
+        } catch (e) {
+            console.log(chalk.red(e?.message || e));
+            return;
+        }
+
+        const [remoteBranches, localBranches] = await Promise.all([
+            searchRemoteBranches(projectId, keywords),
+            Promise.resolve(readLocalBranches().filter(name => keywords.some(kw => name.includes(kw))))
+        ]);
+
+        const all = ensureStringArray([...remoteBranches, ...localBranches]);
+        writeDeleteFile(all);
+        console.log(chalk.green('已在当前目录下生成 delete_braches.txt, 请检查或修改要删除的分支，确认后重新执行本命令。'));
+        return;
+    }
+
+    // 2) 存在文件 => 读取并执行删除
+    const raw = fs.readFileSync(DELETE_FILE, 'utf8');
+    const branches = ensureStringArray(
+        raw.split('\n')
+            .map(s => s.trim())
+            .filter(s => s && !s.startsWith('#'))
+    );
+
+    if (!branches.length) {
+        console.log(chalk.yellow('delete_braches.txt 中没有可删除的分支，请填写后重试。'));
+        return;
+    }
+
+    const { deleteLocal, deleteRemote, confirmExec } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'deleteLocal',
+            message: '是否删除本地分支?',
+            default: true
+        },
+        {
+            type: 'confirm',
+            name: 'deleteRemote',
+            message: '是否同步删除远程分支?',
+            default: false
+        },
+        {
+            type: 'confirm',
+            name: 'confirmExec',
+            message: (ans) => `将删除 ${branches.length} 个分支${ans.deleteLocal ? ' [本地]' : ''}${ans.deleteRemote ? ' [远程]' : ''}，是否继续?`,
+            default: false
+        }
+    ]);
+
+    if (!confirmExec) {
+        console.log(chalk.yellow('已取消操作。'));
+        return;
+    }
+
+    let projectId = null;
+    if (deleteRemote) {
+        try {
+            projectId = await getCurProjectId();
+        } catch (e) {
+            console.log(chalk.red(e?.message || e));
+            return;
+        }
+    }
+
+    const currentBranch = (() => {
+        try {
+            return execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+        } catch (_) { return ''; }
+    })();
+
+    // 实时删除
+    for (const name of branches) {
+        if (deleteLocal) {
+            process.stdout.write(chalk.cyan(`本地删除: ${name} ... `));
+            try {
+                if (name === currentBranch) {
+                    throw new Error('无法删除当前所在分支，请先切换到其他分支。');
+                }
+                execSync(`git branch -D ${name}`, { stdio: ['ignore', 'pipe', 'pipe'] });
+                console.log(chalk.green('成功'));
+            } catch (e) {
+                console.log(chalk.red(`失败 -> ${e?.message || e}`));
+            }
+        }
+
+        if (deleteRemote) {
+            process.stdout.write(chalk.cyan(`远程删除: ${name} ... `));
+            try {
+                await gitlabInstance.Branches.remove(projectId, name);
+                console.log(chalk.green('成功'));
+            } catch (e) {
+                const msg = e?.cause?.description || e?.response?.body?.message || e?.message || e;
+                console.log(chalk.red(`失败 -> ${msg}`));
+            }
+        }
+    }
+
+    console.log(chalk.green('操作完成。'));
+})();
+
+
