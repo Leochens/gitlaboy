@@ -1,6 +1,6 @@
 {
   "name": "gitlaboy",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "适配GitLab的cli客户端，可以提供创建mr,创建cherry-pick等操作。",
   "main": "index.js",
   "scripts": {
